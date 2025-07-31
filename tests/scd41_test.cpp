@@ -66,7 +66,7 @@ TEST(Scd41Driver_TestGroup, GetSerialNumber_Success)
           .withParameter("len", 2)
           .andReturnValue(0);
 
-    mock().expectOneCall("delay_ms").withParameter("ms", 1);
+    mock().expectOneCall("delay_ms").withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
 
     mock().expectOneCall("i2c_read")
           .withParameter("addr", SCD41_I2C_ADDR)
@@ -107,7 +107,7 @@ TEST(Scd41Driver_TestGroup, GetSerialNumber_FailsOnBadCrc)
           .withParameter("len", 2).andReturnValue(0);
 
     mock().expectOneCall("delay_ms")
-          .withParameter("ms", 1);
+          .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
 
     mock().expectOneCall("i2c_read")
           .withParameter("addr", SCD41_I2C_ADDR)
@@ -137,7 +137,7 @@ TEST(Scd41Driver_TestGroup, ReadMeasurement_Success)
           .andReturnValue(0);
 
     mock().expectOneCall("delay_ms")
-          .withParameter("ms", 1);
+          .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
 
     mock().expectOneCall("i2c_read")
           .withParameter("addr", SCD41_I2C_ADDR)
@@ -154,6 +154,165 @@ TEST(Scd41Driver_TestGroup, ReadMeasurement_Success)
     LONGS_EQUAL(500, actual_measurement.co2_ppm);
     DOUBLES_EQUAL(25.0, actual_measurement.temperature_c, 0.1);
     DOUBLES_EQUAL(37.0, actual_measurement.humidity_rh, 0.1);
+}
+
+
+TEST (Scd41Driver_TestGroup, Scd41StartPeriodicMeasurement_Success) {
+    uint8_t expected_cmd[] = {0x21, 0xB1};
+
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_START_PERIODIC_MEAS_DELAY_MS);
+
+    int8_t result = scd41_start_periodic_measurement();
+
+    LONGS_EQUAL(0, result);
+}
+
+TEST (Scd41Driver_TestGroup, Scd41StopPeriodicMeasurement_Success) {
+    uint8_t expected_cmd[] = {0x3F, 0x86};
+
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_STOP_PERIODIC_MEAS_DELAY_MS);
+
+    int8_t result = scd41_stop_periodic_measurement();
+
+    LONGS_EQUAL(0, result);
+}
+
+TEST (Scd41Driver_TestGroup, GetDataReadyStatus_Failure) {
+    uint8_t expected_cmd[] = {0xE4, 0xB8};
+    uint8_t fake_sensor_response[] = {0x80, 0x00, 0xA2};
+    bool is_data_ready;
+
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
+
+    mock().expectOneCall("i2c_read")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withParameter("len", 3)
+          .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+          .andReturnValue(0);
+
+    int8_t result = scd41_get_data_ready_status(&is_data_ready);
+
+    LONGS_EQUAL(0, result);
+    CHECK_FALSE(is_data_ready);
+}
+
+TEST (Scd41Driver_TestGroup, GetDataReadyStatus_Success) {
+    uint8_t expected_cmd[] = {0xE4, 0xB8};
+    uint8_t fake_sensor_response[] = {0x80, 0xF0, 0xA2};
+    bool is_data_ready;
+
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
+
+    mock().expectOneCall("i2c_read")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withParameter("len", 3)
+          .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+          .andReturnValue(0);
+
+    int8_t result = scd41_get_data_ready_status(&is_data_ready);
+
+    LONGS_EQUAL(0, result);
+    CHECK_TRUE(is_data_ready);
+}
+
+TEST (Scd41Driver_TestGroup, GetSingleshotMeasurement_success) {
+    uint8_t single_shot_cmd[] = {0x21, 0x9D};
+    uint8_t wakeup_command[] = {0x36, 0xF6};
+    uint8_t read_meas_cmd[] = {0xEC, 0x05};
+    uint8_t fake_sensor_response[] = {0x01, 0xF4, 0x33, 0x66, 0x67, 0xA2, 0x5E, 0xB9, 0x3C};
+    scd41_measurement_t actual_measurement = {0, 0.0f, 0.0f};
+    
+    // Write data
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", single_shot_cmd, sizeof(single_shot_cmd))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_SINGLE_SHOT_MEAS_DELAY_MS);
+
+    // Wakeup sensor
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", wakeup_command, sizeof(wakeup_command))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_WAKEUP_DELAY_MS);
+
+    // Read data
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", read_meas_cmd, sizeof(read_meas_cmd))
+          .withParameter("len", 2)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
+
+    mock().expectOneCall("i2c_read")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withParameter("len", 9)
+          .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+          .andReturnValue(0);
+
+    int8_t result = scd41_measure_single_shot(&actual_measurement);
+
+    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(500, actual_measurement.co2_ppm);
+    DOUBLES_EQUAL(25.0, actual_measurement.temperature_c, 0.1);
+    DOUBLES_EQUAL(37.0, actual_measurement.humidity_rh, 0.1);
+}
+
+
+TEST(Scd41Driver_TestGroup, SetSensorAltitude_Success) {
+    // Write command and the altitude. Sample values from datasheet
+    // section 3.7.3
+    uint8_t set_altitude_command[] = {0x24, 0x27, 0x07, 0x9E, 0x09};
+    uint16_t altitude_to_set = 1950;
+
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", set_altitude_command, sizeof(set_altitude_command))
+          .withParameter("len", 5)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_SET_SENSOR_ALTITUDE_DELAY_MS);
+
+    int8_t result = scd41_set_sensor_altitude(altitude_to_set);
+    LONGS_EQUAL(0, result);
+
 }
 
 int main(int ac, char** av)

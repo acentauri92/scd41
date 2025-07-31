@@ -41,6 +41,26 @@ static int8_t _scd41_read_word_with_crc(const uint8_t* buffer, uint16_t* word) {
 }
 
 /**
+ * @brief Internal helper to send a command with no subsequent read.
+ * @param command The 16-bit command to send.
+ * @param delay_after_ms Milliseconds to wait after sending the command.
+ * @return 0 on success, non-zero on failure.
+ */
+static int8_t _scd41_send_command(uint16_t command, uint32_t delay_after_ms) {
+    uint8_t cmd_buffer[2];
+    scd41_fill_command_buffer(command, cmd_buffer);
+
+    if (i2c_write(SCD41_I2C_ADDR, cmd_buffer, 2) != 0)
+        return -1;
+
+    if (delay_after_ms > 0)
+        delay_ms(delay_after_ms);
+
+    return 0;
+}
+
+
+/**
  * @brief Internal helper to send a command and read a 9-byte response.
  * @param command The 16-bit command to send.
  * @param read_buffer A pointer to a 9-byte buffer to store the response.
@@ -56,13 +76,22 @@ static int8_t _scd41_send_command_and_read(uint16_t command, uint8_t* read_buffe
     }
 
     // Sensor needs ~1ms to respond with data
-    delay_ms(1);
+    delay_ms(SCD41_READ_MEAS_DELAY_MS);
 
     // Read the 9-byte response from the sensor
     if (i2c_read(SCD41_I2C_ADDR, read_buffer, 9) != 0) {
-        return -1; // Read error
+        return -1;
     }
    
+}
+
+
+int8_t scd41_reinit(void) {
+    _scd41_send_command(SCD41_CMD_REINIT, SCD41_REINIT_DELAY_MS);
+}
+
+int8_t scd41_wakeup(void) {
+    return _scd41_send_command(SCD41_CMD_WAKEUP, SCD41_WAKEUP_DELAY_MS);
 }
 
 int8_t scd41_get_serial_number(uint64_t* serial_number) {
@@ -91,7 +120,7 @@ int8_t scd41_read_measurement(scd41_measurement_t* measurement) {
     uint8_t read_buffer[9];
     uint16_t co2_raw, temp_raw, rh_raw;
 
-    if (_scd41_send_command_and_read(SCD_41_CMD_READ_MEASUREMENT, read_buffer) != 0)
+    if (_scd41_send_command_and_read(SCD41_CMD_READ_MEAS, read_buffer) != 0)
         return -1;
     
     // Validate each word
@@ -108,3 +137,67 @@ int8_t scd41_read_measurement(scd41_measurement_t* measurement) {
     return 0;
 }
 
+int8_t scd41_start_periodic_measurement(void) {
+    
+    return _scd41_send_command(SCD41_CMD_START_PERIODIC_MEAS, 
+                                SCD41_START_PERIODIC_MEAS_DELAY_MS);
+}
+
+int8_t scd41_stop_periodic_measurement(void){
+
+   return _scd41_send_command(SCD41_CMD_STOP_PERIODIC_MEAS, 
+                                SCD41_STOP_PERIODIC_MEAS_DELAY_MS);
+}
+
+int8_t scd41_get_data_ready_status(bool* is_data_ready){
+
+    uint8_t read_buffer[3];
+    uint16_t status_word;
+
+    if (_scd41_send_command(SCD41_CMD_GET_DATA_READY_STATUS, SCD41_READ_MEAS_DELAY_MS) != 0)
+        return -1;
+
+    if (i2c_read(SCD41_I2C_ADDR, read_buffer, 3) != 0)
+        return -1;
+
+    _scd41_read_word_with_crc(read_buffer, &status_word);
+
+    if(status_word & 0x07FF)
+        *is_data_ready = true;
+    else
+        *is_data_ready = false; 
+
+    return 0;
+}
+
+int8_t scd41_measure_single_shot(scd41_measurement_t* measurement) {
+
+    int8_t result = _scd41_send_command(SCD41_CMD_SINGLE_SHOT_MEAS, SCD41_SINGLE_SHOT_MEAS_DELAY_MS);
+    if (result != 0)
+        return result;
+
+    // The sensor may have gone back to sleep. Wake it up before reading.
+    if (scd41_wakeup() != 0)
+        return -4;
+
+    return scd41_read_measurement(measurement);
+}
+
+int8_t scd41_set_sensor_altitude(uint16_t altitude_m) {
+    uint8_t packet[5];
+
+    scd41_fill_command_buffer(SCD41_CMD_SET_SENSOR_ALTITUDE, &packet[0]);
+
+    // Fill the 2-byte altitude argument
+    packet[2] = (uint8_t)(altitude_m >> 8);
+    packet[3] = (uint8_t)(altitude_m & 0xFF);
+
+    packet[4] = scd41_crc_calculate(&packet[2], 2);
+
+    if (i2c_write(SCD41_I2C_ADDR, packet, 5) != 0)
+        return -1;
+
+    delay_ms(SCD41_SET_SENSOR_ALTITUDE_DELAY_MS);
+
+    return 0;
+}
