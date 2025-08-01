@@ -315,6 +315,36 @@ TEST(Scd41Driver_TestGroup, SetSensorAltitude_Success) {
 
 }
 
+TEST(Scd41Driver_TestGroup, GetSensorAltitude_Success) {
+
+    uint16_t actual_altitude = 0;
+    uint16_t expected_altitude = 1100;
+    uint8_t expected_cmd[] = {0x23, 0x22};
+
+//     Sample values from datasheet section 3.7.4
+    uint8_t fake_sensor_response[] = {0x04, 0x4C, 0x42};
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+            .withParameter("len", 2)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
+
+      mock().expectOneCall("i2c_read")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withParameter("len", 3)
+            .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+            .andReturnValue(0);
+
+      int8_t result = scd41_get_sensor_altitude(&actual_altitude);
+      LONGS_EQUAL(0, result);
+      LONGS_EQUAL(expected_altitude, actual_altitude);
+
+}
+
 int main(int ac, char** av)
 {
     return CommandLineTestRunner::RunAllTests(ac, av);

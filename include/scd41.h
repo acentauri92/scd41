@@ -6,26 +6,28 @@
 #include <stdbool.h>
 
 // SCD41 commands
-#define SCD41_I2C_ADDR                      0x62
-#define SCD41_CMD_GET_SERIAL_NUMBER         0x3682
-#define SCD41_CMD_READ_MEAS                 0xEC05
-#define SCD41_CMD_START_PERIODIC_MEAS       0x21B1
-#define SCD41_CMD_STOP_PERIODIC_MEAS        0x3F86
-#define SCD41_CMD_GET_DATA_READY_STATUS     0xE4B8
-#define SCD41_CMD_REINIT                    0x3646
-#define SCD41_CMD_WAKEUP                    0x36F6
-#define SCD41_CMD_SINGLE_SHOT_MEAS          0x219D
-#define SCD41_CMD_SET_SENSOR_ALTITUDE       0x2427
+#define SCD41_CMD_GET_SERIAL_NUMBER                     0x3682
+#define SCD41_I2C_ADDR                                  0x62
+#define SCD41_CMD_READ_MEAS                             0xEC05
+#define SCD41_CMD_START_PERIODIC_MEAS                   0x21B1
+#define SCD41_CMD_STOP_PERIODIC_MEAS                    0x3F86
+#define SCD41_CMD_GET_DATA_READY_STATUS                 0xE4B8
+#define SCD41_CMD_REINIT                                0x3646
+#define SCD41_CMD_WAKEUP                                0x36F6
+#define SCD41_CMD_SINGLE_SHOT_MEAS                      0x219D
+#define SCD41_CMD_SET_SENSOR_ALTITUDE                   0x2427
+#define SCD41_CMD_GET_SENSOR_ALTITUDE                   0x2322
 
 
 //  Measurement delays in milliseconds (ms) for the sensor.
-#define SCD41_START_PERIODIC_MEAS_DELAY_MS  5
-#define SCD41_STOP_PERIODIC_MEAS_DELAY_MS   500
-#define SCD41_READ_MEAS_DELAY_MS            1
-#define SCD41_REINIT_DELAY_MS               30
-#define SCD41_WAKEUP_DELAY_MS               30
-#define SCD41_SINGLE_SHOT_MEAS_DELAY_MS     5000
-#define SCD41_SET_SENSOR_ALTITUDE_DELAY_MS  1
+#define SCD41_START_PERIODIC_MEAS_DELAY_MS              5U
+#define SCD41_STOP_PERIODIC_MEAS_DELAY_MS               500U
+#define SCD41_READ_MEAS_DELAY_MS                        1U
+#define SCD41_REINIT_DELAY_MS                           30U
+#define SCD41_WAKEUP_DELAY_MS                           30U
+#define SCD41_SINGLE_SHOT_MEAS_DELAY_MS                 5000U
+#define SCD41_SET_SENSOR_ALTITUDE_DELAY_MS              1U
+#define SCD41_GET_SENSOR_ALTITUDE_DELAY_MS              1U
 
 /**
  * @brief Holds a single sensor measurement.
@@ -35,7 +37,6 @@ typedef struct {
     float temperature_c;
     float humidity_rh;
 } scd41_measurement_t;
-
 
 /**
  * @brief Fills a 2-byte buffer with a 16-bit command in big-endian format.
@@ -112,6 +113,12 @@ int8_t scd41_measure_single_shot(scd41_measurement_t* measurement);
  * @param altitude_m Altitude in meters (m) above sea level.
  * @return 0 on success, non-zero on failure.
  */
-int8_t scd41_set_sensor_altitude(uint16_t altitude);
+int8_t scd41_set_sensor_altitude(uint16_t altitude_m);
 
+/**
+ * @brief Gets the currentlly configured sensor altitude.
+ * @param 
+ * @return 0 on success, non-zero on failure.
+ */
+int8_t scd41_get_sensor_altitude(uint16_t* altitude_m);
 #endif // SCD41_H

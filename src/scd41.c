@@ -201,3 +201,21 @@ int8_t scd41_set_sensor_altitude(uint16_t altitude_m) {
 
     return 0;
 }
+
+int8_t scd41_get_sensor_altitude(uint16_t* altitude_m) {
+    uint8_t read_buffer[3];
+    uint8_t command_buffer[2];
+
+    scd41_fill_command_buffer(SCD41_CMD_GET_SENSOR_ALTITUDE, command_buffer);
+
+    if (i2c_write(SCD41_I2C_ADDR, command_buffer, 2) != 0)
+        return -1;
+    
+    delay_ms(SCD41_GET_SENSOR_ALTITUDE_DELAY_MS);
+
+    if (i2c_read(SCD41_I2C_ADDR, read_buffer, 3) != 0)
+        return -1;
+
+    if(_scd41_read_word_with_crc(read_buffer, altitude_m) != 0)
+    return -1;
+};
