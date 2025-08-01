@@ -4,6 +4,7 @@
 # The slash at the end ensures we only ignore directories, not files named 'build'.
 build/
 build-*/
+scd41_app
 
 # --- Compiled files ---
 # Ignore object files, libraries, and executables.
