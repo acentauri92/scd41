@@ -78,7 +78,7 @@ TEST(Scd41Driver_TestGroup, GetSerialNumber_Success)
     int8_t result = scd41_get_serial_number(&actual_serial);
 
     // ASSERT
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
     UNSIGNED_LONGLONGS_EQUAL(expected_serial, actual_serial);
 }
 
@@ -104,7 +104,8 @@ TEST(Scd41Driver_TestGroup, GetSerialNumber_FailsOnBadCrc)
     mock().expectOneCall("i2c_write")
           .withParameter("addr", SCD41_I2C_ADDR)
           .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
-          .withParameter("len", 2).andReturnValue(0);
+          .withParameter("len", 2)
+          .andReturnValue(0);
 
     mock().expectOneCall("delay_ms")
           .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
@@ -112,12 +113,13 @@ TEST(Scd41Driver_TestGroup, GetSerialNumber_FailsOnBadCrc)
     mock().expectOneCall("i2c_read")
           .withParameter("addr", SCD41_I2C_ADDR)
           .withParameter("len", 9)
-          .withOutputParameterReturning("data", fake_bad_crc_response, sizeof(fake_bad_crc_response)).andReturnValue(0);
+          .withOutputParameterReturning("data", fake_bad_crc_response, sizeof(fake_bad_crc_response))
+          .andReturnValue(0);
 
     // ACT
     int8_t result = scd41_get_serial_number(&actual_serial);
 
-    CHECK_TRUE(result != 0);
+    CHECK_TRUE(result != SCD41_OK);
 }
 
 TEST(Scd41Driver_TestGroup, ReadMeasurement_Success)
@@ -150,7 +152,7 @@ TEST(Scd41Driver_TestGroup, ReadMeasurement_Success)
 
     // ASSERT
     // This test will fail because our dummy function returns -1.
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
     LONGS_EQUAL(500, actual_measurement.co2_ppm);
     DOUBLES_EQUAL(25.0, actual_measurement.temperature_c, 0.1);
     DOUBLES_EQUAL(37.0, actual_measurement.humidity_rh, 0.1);
@@ -171,7 +173,7 @@ TEST (Scd41Driver_TestGroup, Scd41StartPeriodicMeasurement_Success) {
 
     int8_t result = scd41_start_periodic_measurement();
 
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
 }
 
 TEST (Scd41Driver_TestGroup, Scd41StopPeriodicMeasurement_Success) {
@@ -213,13 +215,14 @@ TEST (Scd41Driver_TestGroup, GetDataReadyStatus_Failure) {
 
     int8_t result = scd41_get_data_ready_status(&is_data_ready);
 
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
     CHECK_FALSE(is_data_ready);
 }
 
 TEST (Scd41Driver_TestGroup, GetDataReadyStatus_Success) {
     uint8_t expected_cmd[] = {0xE4, 0xB8};
-    uint8_t fake_sensor_response[] = {0x80, 0xF0, 0xA2};
+    // Change LSB to 0xFF and update CRC to mimic data ready
+    uint8_t fake_sensor_response[] = {0x80, 0xFF, 0x0E};
     bool is_data_ready;
 
     mock().expectOneCall("i2c_write")
@@ -229,7 +232,7 @@ TEST (Scd41Driver_TestGroup, GetDataReadyStatus_Success) {
           .andReturnValue(0);
 
     mock().expectOneCall("delay_ms")
-          .withParameter("ms", SCD41_READ_MEAS_DELAY_MS);
+          .withParameter("ms", SCD41_GET_DATA_READY_STATUS_DELAY_MS);
 
     mock().expectOneCall("i2c_read")
           .withParameter("addr", SCD41_I2C_ADDR)
@@ -239,7 +242,7 @@ TEST (Scd41Driver_TestGroup, GetDataReadyStatus_Success) {
 
     int8_t result = scd41_get_data_ready_status(&is_data_ready);
 
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
     CHECK_TRUE(is_data_ready);
 }
 
@@ -288,7 +291,7 @@ TEST (Scd41Driver_TestGroup, GetSingleshotMeasurement_success) {
 
     int8_t result = scd41_measure_single_shot(&actual_measurement);
 
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
     LONGS_EQUAL(500, actual_measurement.co2_ppm);
     DOUBLES_EQUAL(25.0, actual_measurement.temperature_c, 0.1);
     DOUBLES_EQUAL(37.0, actual_measurement.humidity_rh, 0.1);
@@ -311,7 +314,7 @@ TEST(Scd41Driver_TestGroup, SetSensorAltitude_Success) {
           .withParameter("ms", SCD41_SET_SENSOR_ALTITUDE_DELAY_MS);
 
     int8_t result = scd41_set_sensor_altitude(altitude_to_set);
-    LONGS_EQUAL(0, result);
+    LONGS_EQUAL(SCD41_OK, result);
 
 }
 
@@ -340,7 +343,7 @@ TEST(Scd41Driver_TestGroup, GetSensorAltitude_Success) {
             .andReturnValue(0);
 
       int8_t result = scd41_get_sensor_altitude(&actual_altitude);
-      LONGS_EQUAL(0, result);
+      LONGS_EQUAL(SCD41_OK, result);
       LONGS_EQUAL(expected_altitude, actual_altitude);
 
 }

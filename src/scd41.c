@@ -29,42 +29,63 @@ uint8_t scd41_crc_calculate(const uint8_t* data, size_t len) {
  * @brief Internal helper to read a 16-bit word and verify its CRC.
  * @param buffer Pointer to the 3-byte data packet (MSB, LSB, CRC).
  * @param word Pointer to a uint16_t to store the result.
- * @return 0 on success, -1 on CRC failure.
+ * @retun SCD41_OK on success, non-zero on CRC failure.
  */
 static int8_t _scd41_read_word_with_crc(const uint8_t* buffer, uint16_t* word) {
     if(scd41_crc_calculate(buffer, 2) != buffer[2]) {
-        return -1;
+        return SCD41_ERR_CRC;
     }
     // Combine MSB and LSB
     *word = ((uint16_t)buffer[0] << 8) | buffer[1];
-    return 0;
+    return SCD41_OK;
 }
 
 /**
  * @brief Internal helper to send a command with no subsequent read.
  * @param command The 16-bit command to send.
  * @param delay_after_ms Milliseconds to wait after sending the command.
- * @return 0 on success, non-zero on failure.
+ * @retun SCD41_OK on success, non-zero on failure.
  */
 static int8_t _scd41_send_command(uint16_t command, uint32_t delay_after_ms) {
     uint8_t cmd_buffer[2];
     scd41_fill_command_buffer(command, cmd_buffer);
 
     if (i2c_write(SCD41_I2C_ADDR, cmd_buffer, 2) != 0)
-        return -1;
+        return SCD41_ERR_I2C_WRITE;
 
     if (delay_after_ms > 0)
         delay_ms(delay_after_ms);
 
-    return 0;
+    return SCD41_OK;
 }
 
+/**
+ * @brief Helper function to send command and read back a 16 bit word with CRC.
+ * @param command The 16 bit command to send.
+ * @param word Pointer to buffer to store the result.
+ * @param delay_ms Time to wait after sending the command.
+ * @retun SCD41_OK on succcess, non-zero on failure.
+ */
 
+ int8_t _scd41_read_u16_with_crc(uint16_t command, uint16_t* word, uint32_t delay_ms) {
+    uint8_t read_buffer[3];
+    int8_t result;
+
+    result = _scd41_send_command(command, delay_ms);
+    if(result != SCD41_OK)
+        return result;
+
+    if (i2c_read(SCD41_I2C_ADDR, read_buffer, 3) != 0)
+        return SCD41_ERR_I2C_READ;
+
+    return _scd41_read_word_with_crc(read_buffer, word);
+ }
+ 
 /**
  * @brief Internal helper to send a command and read a 9-byte response.
  * @param command The 16-bit command to send.
  * @param read_buffer A pointer to a 9-byte buffer to store the response.
- * @return 0 on success, non-zero on failure.
+ * @retun SCD41_OK on success, non-zero on failure.
  */
 static int8_t _scd41_send_command_and_read(uint16_t command, uint8_t* read_buffer) {
     uint8_t cmd_buffer[2];
@@ -72,7 +93,7 @@ static int8_t _scd41_send_command_and_read(uint16_t command, uint8_t* read_buffe
     // Prepare and send the command to the sensor
     scd41_fill_command_buffer(command, cmd_buffer);
     if (i2c_write(SCD41_I2C_ADDR, cmd_buffer, 2) != 0) {
-        return -1; 
+        return SCD41_ERR_I2C_WRITE; 
     }
 
     // Sensor needs ~1ms to respond with data
@@ -80,14 +101,15 @@ static int8_t _scd41_send_command_and_read(uint16_t command, uint8_t* read_buffe
 
     // Read the 9-byte response from the sensor
     if (i2c_read(SCD41_I2C_ADDR, read_buffer, 9) != 0) {
-        return -1;
+        return SCD41_ERR_I2C_READ;
     }
    
 }
 
 
 int8_t scd41_reinit(void) {
-    _scd41_send_command(SCD41_CMD_REINIT, SCD41_REINIT_DELAY_MS);
+    return _scd41_send_command(SCD41_CMD_REINIT, SCD41_REINIT_DELAY_MS);
+
 }
 
 int8_t scd41_wakeup(void) {
@@ -98,43 +120,51 @@ int8_t scd41_get_serial_number(uint64_t* serial_number) {
 
     uint8_t read_buffer[9];
     uint16_t word1, word2, word3;
+    int8_t result = SCD41_OK;
 
-    if (_scd41_send_command_and_read(SCD41_CMD_GET_SERIAL_NUMBER, read_buffer) != 0)
-        return -1;
+    result = _scd41_send_command_and_read(SCD41_CMD_GET_SERIAL_NUMBER, read_buffer);
+    if(result != SCD41_OK)
+        return result;
 
     // Validate each word
-    if (_scd41_read_word_with_crc(&read_buffer[0], &word1) != 0 ||
-        _scd41_read_word_with_crc(&read_buffer[3], &word2) != 0 ||
-        _scd41_read_word_with_crc(&read_buffer[6], &word3) != 0)
-            return -3;
+    result = _scd41_read_word_with_crc(&read_buffer[0], &word1) != 0 ||
+                _scd41_read_word_with_crc(&read_buffer[3], &word2) != 0 ||
+                _scd41_read_word_with_crc(&read_buffer[6], &word3) != 0;
+
+    if(result != SCD41_OK)
+        return result;
 
     // Combine the three 16-bit words into a single 48-bit serial number.
     *serial_number = ((uint64_t)word1 << 32) | ((uint64_t)word2 << 16) | 
                         (uint64_t)word3;
 
-    return 0;
+    return result;
 }
 
 int8_t scd41_read_measurement(scd41_measurement_t* measurement) {
 
     uint8_t read_buffer[9];
     uint16_t co2_raw, temp_raw, rh_raw;
+    int8_t result = SCD41_OK;
 
-    if (_scd41_send_command_and_read(SCD41_CMD_READ_MEAS, read_buffer) != 0)
-        return -1;
+    result = _scd41_send_command_and_read(SCD41_CMD_READ_MEAS, read_buffer) != 0;
+    if(result != SCD41_OK)
+        return result;
     
     // Validate each word
-    if (_scd41_read_word_with_crc(&read_buffer[0], &co2_raw) != 0 ||
-        _scd41_read_word_with_crc(&read_buffer[3], &temp_raw) != 0 ||
-        _scd41_read_word_with_crc(&read_buffer[6], &rh_raw) != 0)
-            return -3;
-    
+    result = _scd41_read_word_with_crc(&read_buffer[0], &co2_raw) != 0 ||
+                _scd41_read_word_with_crc(&read_buffer[3], &temp_raw) != 0 ||
+                _scd41_read_word_with_crc(&read_buffer[6], &rh_raw) != 0;
+
+    if(result != SCD41_OK)
+        return result; 
+
     // Formulas are from datasheet Section 3.6.2
     measurement->co2_ppm = co2_raw;
     measurement->temperature_c = -45.0f + ( (175.0f * (float)temp_raw) / 65535.0f );
     measurement->humidity_rh = 100.0f * (float)rh_raw / 65535.0f;
 
-    return 0;
+    return result;
 }
 
 int8_t scd41_start_periodic_measurement(void) {
@@ -151,34 +181,33 @@ int8_t scd41_stop_periodic_measurement(void){
 
 int8_t scd41_get_data_ready_status(bool* is_data_ready){
 
-    uint8_t read_buffer[3];
     uint16_t status_word;
 
-    if (_scd41_send_command(SCD41_CMD_GET_DATA_READY_STATUS, SCD41_READ_MEAS_DELAY_MS) != 0)
-        return -1;
+    int8_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_DATA_READY_STATUS, 
+                                            &status_word,
+                                            SCD41_GET_DATA_READY_STATUS_DELAY_MS);
 
-    if (i2c_read(SCD41_I2C_ADDR, read_buffer, 3) != 0)
-        return -1;
-
-    _scd41_read_word_with_crc(read_buffer, &status_word);
+    if (result != SCD41_OK)
+        return result;
 
     if(status_word & 0x07FF)
         *is_data_ready = true;
     else
         *is_data_ready = false; 
 
-    return 0;
+    return result;
 }
 
 int8_t scd41_measure_single_shot(scd41_measurement_t* measurement) {
 
-    int8_t result = _scd41_send_command(SCD41_CMD_SINGLE_SHOT_MEAS, SCD41_SINGLE_SHOT_MEAS_DELAY_MS);
-    if (result != 0)
+    int8_t result = _scd41_send_command(SCD41_CMD_SINGLE_SHOT_MEAS, 
+                                        SCD41_SINGLE_SHOT_MEAS_DELAY_MS);
+    if (result != SCD41_OK)
         return result;
 
     // The sensor may have gone back to sleep. Wake it up before reading.
-    if (scd41_wakeup() != 0)
-        return -4;
+    if (scd41_wakeup() != SCD41_OK)
+        return SCD41_ERR_WAKEUP;
 
     return scd41_read_measurement(measurement);
 }
@@ -195,27 +224,17 @@ int8_t scd41_set_sensor_altitude(uint16_t altitude_m) {
     packet[4] = scd41_crc_calculate(&packet[2], 2);
 
     if (i2c_write(SCD41_I2C_ADDR, packet, 5) != 0)
-        return -1;
+        return SCD41_ERR_I2C_WRITE;
 
     delay_ms(SCD41_SET_SENSOR_ALTITUDE_DELAY_MS);
 
-    return 0;
+    return SCD41_OK;
 }
 
 int8_t scd41_get_sensor_altitude(uint16_t* altitude_m) {
-    uint8_t read_buffer[3];
-    uint8_t command_buffer[2];
 
-    scd41_fill_command_buffer(SCD41_CMD_GET_SENSOR_ALTITUDE, command_buffer);
+   return _scd41_read_u16_with_crc(SCD41_CMD_GET_SENSOR_ALTITUDE, altitude_m,
+                                    SCD41_GET_SENSOR_ALTITUDE_DELAY_MS);
 
-    if (i2c_write(SCD41_I2C_ADDR, command_buffer, 2) != 0)
-        return -1;
-    
-    delay_ms(SCD41_GET_SENSOR_ALTITUDE_DELAY_MS);
-
-    if (i2c_read(SCD41_I2C_ADDR, read_buffer, 3) != 0)
-        return -1;
-
-    if(_scd41_read_word_with_crc(read_buffer, altitude_m) != 0)
-    return -1;
 };
+
