@@ -238,3 +238,22 @@ int8_t scd41_get_sensor_altitude(uint16_t* altitude_m) {
 
 };
 
+int8_t scd41_set_ambient_pressure(uint32_t pressure_mbar) {
+
+    uint8_t packet[5];
+    // Pressure needs to be sent after dividing by 100 as mentioned in thre
+    // datasheet section 3.7.5
+    uint16_t pressure_arg = (uint16_t) (pressure_mbar/100);
+    scd41_fill_command_buffer(SCD41_CMD_SET_AMBIENT_PRESSURE, &packet[0]);
+
+    packet[2] = (uint8_t)(pressure_arg >> 8);
+    packet[3] = (uint8_t)(pressure_arg & 0xFF);
+    packet[4] = scd41_crc_calculate(&packet[2], 2);
+
+    if (i2c_write(SCD41_I2C_ADDR, packet, 5) != 0)
+        return SCD41_ERR_I2C_WRITE;
+    
+    delay_ms(SCD41_SET_AMBIENT_PRESSURE_DELAY_MS);
+
+    return SCD41_OK;
+}

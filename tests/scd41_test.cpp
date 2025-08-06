@@ -339,12 +339,33 @@ TEST(Scd41Driver_TestGroup, GetSensorAltitude_Success) {
       mock().expectOneCall("i2c_read")
             .withParameter("addr", SCD41_I2C_ADDR)
             .withParameter("len", 3)
-            .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+            .withOutputParameterReturning("data", fake_sensor_response, 
+                                          sizeof(fake_sensor_response))
             .andReturnValue(0);
 
       int8_t result = scd41_get_sensor_altitude(&actual_altitude);
       LONGS_EQUAL(SCD41_OK, result);
       LONGS_EQUAL(expected_altitude, actual_altitude);
+
+}
+
+TEST(Scd41Driver_TestGroup, SetSensorAmbientPressure_Success) {
+    // Write command and the pressure. Sample values from datasheet
+    // section 3.7.5 
+    uint8_t set_pressure_command[] = {0xE0, 0x00, 0x03, 0xDB, 0x42};
+    uint32_t pressure_to_set = 98700;
+
+    mock().expectOneCall("i2c_write")
+          .withParameter("addr", SCD41_I2C_ADDR)
+          .withMemoryBufferParameter("data", set_pressure_command, sizeof(set_pressure_command))
+          .withParameter("len", 5)
+          .andReturnValue(0);
+
+    mock().expectOneCall("delay_ms")
+          .withParameter("ms", SCD41_SET_AMBIENT_PRESSURE_DELAY_MS);
+
+    int8_t result = scd41_set_ambient_pressure(pressure_to_set);
+    LONGS_EQUAL(SCD41_OK, result);
 
 }
 
