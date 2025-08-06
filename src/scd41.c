@@ -257,3 +257,19 @@ int8_t scd41_set_ambient_pressure(uint32_t pressure_mbar) {
 
     return SCD41_OK;
 }
+
+
+int8_t scd41_get_ambient_pressure(uint32_t* pressure_pa){
+
+    uint16_t pressure_mbar;
+    int8_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_AMBIENT_PRESSURE, &pressure_mbar, SCD41_GET_AMBIENT_PRESSURE_DELAY_MS);
+
+    if (result == SCD41_OK) {
+        // Convert the value from mbar (hPa) to Pascals as mentioned
+        // in datasheet section 3.7.6
+        *pressure_pa = (uint32_t)pressure_mbar * 100;
+    }
+
+    return result;
+}
+

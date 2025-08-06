@@ -18,6 +18,7 @@
 #define SCD41_CMD_SET_SENSOR_ALTITUDE                   0x2427
 #define SCD41_CMD_GET_SENSOR_ALTITUDE                   0x2322
 #define SCD41_CMD_SET_AMBIENT_PRESSURE                  0XE000
+#define SCD41_CMD_GET_AMBIENT_PRESSURE                  0XE000
 
 
 //  Measurement delays in milliseconds (ms) for the sensor.
@@ -31,6 +32,7 @@
 #define SCD41_SET_SENSOR_ALTITUDE_DELAY_MS              1U
 #define SCD41_GET_SENSOR_ALTITUDE_DELAY_MS              1U
 #define SCD41_SET_AMBIENT_PRESSURE_DELAY_MS             1U
+#define SCD41_GET_AMBIENT_PRESSURE_DELAY_MS             1U
 
 /**
  * @brief Error codes
@@ -142,5 +144,12 @@ int8_t scd41_get_sensor_altitude(uint16_t* altitude_m);
  * @return SCD41_OK on success, non-zero on failure.
  */
 int8_t scd41_set_ambient_pressure(uint32_t pressure_pa);
+
+/**
+ * @brief Gets the sensor ambient pressure.
+ * @param pressure_pa Pointer to pressure in Pascal (Pa).
+ * @return SCD41_OK on success, non-zero on failure.
+ */
+int8_t scd41_get_ambient_pressure(uint32_t* pressure_pa);
 
 #endif // SCD41_H

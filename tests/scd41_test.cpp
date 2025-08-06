@@ -369,6 +369,37 @@ TEST(Scd41Driver_TestGroup, SetSensorAmbientPressure_Success) {
 
 }
 
+TEST(Scd41Driver_TestGroup, GetSensorAmbientPressure_Success) {
+      // Write command and the pressure. Sample values from datasheet
+      // section 3.7.5 
+      uint32_t actual_pressure_pa = 0;
+      uint32_t expected_pressure_pa = 98700;
+
+      uint8_t expected_cmd[] = {0xE0, 0x00};
+      // The sensor returns the pressure in mbar (Pa / 100), so 1013 (0x03F5).
+      uint8_t fake_sensor_response[] = {0x03, 0xDB, 0x42};
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+            .withParameter("len", 2)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms").withParameter("ms", SCD41_GET_AMBIENT_PRESSURE_DELAY_MS);
+
+      mock().expectOneCall("i2c_read")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withParameter("len", 3)
+            .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+            .andReturnValue(0);
+
+      int8_t result = scd41_get_ambient_pressure(&actual_pressure_pa);
+
+      LONGS_EQUAL(SCD41_OK, result);
+      UNSIGNED_LONGS_EQUAL(expected_pressure_pa, actual_pressure_pa);
+
+}
+
 int main(int ac, char** av)
 {
     return CommandLineTestRunner::RunAllTests(ac, av);
