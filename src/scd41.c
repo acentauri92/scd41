@@ -85,7 +85,7 @@ static int8_t _scd41_send_command(uint16_t command, uint32_t delay_after_ms) {
  * @brief Internal helper to send a command and read a 9-byte response.
  * @param command The 16-bit command to send.
  * @param read_buffer A pointer to a 9-byte buffer to store the response.
- * @retun SCD41_OK on success, non-zero on failure.
+ * @return SCD41_OK on success, non-zero on failure.
  */
 static int8_t _scd41_send_command_and_read(uint16_t command, uint8_t* read_buffer) {
     uint8_t cmd_buffer[2];
@@ -106,6 +106,32 @@ static int8_t _scd41_send_command_and_read(uint16_t command, uint8_t* read_buffe
    
 }
 
+/**
+ * @brief Internal helper to send command with 16-bit argument.
+ * @param command The 16-bit command to send.
+ * @param argument The 16-bit argument to send.
+ * @param delay_after_ms Milliseconds to wait after sending the command.
+ * @return SCD41_OK on success, non-zero on failure.
+ */
+static int8_t _scd41_send_command_with_u16_arg(uint16_t command, uint16_t argument, uint16_t delay_after_ms) {
+    uint8_t packet[5];
+
+    scd41_fill_command_buffer(command, &packet[0]);
+
+    // Fill the 2-byte packet with the argument
+    packet[2] = (uint8_t)(argument >> 8);
+    packet[3] = (uint8_t)(argument & 0xFF);
+
+    packet[4] = scd41_crc_calculate(&packet[2], 2);
+
+    if (i2c_write(SCD41_I2C_ADDR, packet, 5) != 0)
+        return SCD41_ERR_I2C_WRITE;
+
+    if (delay_after_ms > 0)
+        delay_ms(delay_after_ms);
+
+    return SCD41_OK;
+}
 
 int8_t scd41_reinit(void) {
     return _scd41_send_command(SCD41_CMD_REINIT, SCD41_REINIT_DELAY_MS);
@@ -213,22 +239,10 @@ int8_t scd41_measure_single_shot(scd41_measurement_t* measurement) {
 }
 
 int8_t scd41_set_sensor_altitude(uint16_t altitude_m) {
-    uint8_t packet[5];
-
-    scd41_fill_command_buffer(SCD41_CMD_SET_SENSOR_ALTITUDE, &packet[0]);
-
-    // Fill the 2-byte altitude argument
-    packet[2] = (uint8_t)(altitude_m >> 8);
-    packet[3] = (uint8_t)(altitude_m & 0xFF);
-
-    packet[4] = scd41_crc_calculate(&packet[2], 2);
-
-    if (i2c_write(SCD41_I2C_ADDR, packet, 5) != 0)
-        return SCD41_ERR_I2C_WRITE;
-
-    delay_ms(SCD41_SET_SENSOR_ALTITUDE_DELAY_MS);
-
-    return SCD41_OK;
+    uint8_t result = _scd41_send_command_with_u16_arg(SCD41_CMD_SET_SENSOR_ALTITUDE,
+                                    altitude_m,
+                                    SCD41_SET_SENSOR_ALTITUDE_DELAY_MS);
+    return result;
 }
 
 int8_t scd41_get_sensor_altitude(uint16_t* altitude_m) {
@@ -240,22 +254,13 @@ int8_t scd41_get_sensor_altitude(uint16_t* altitude_m) {
 
 int8_t scd41_set_ambient_pressure(uint32_t pressure_mbar) {
 
-    uint8_t packet[5];
     // Pressure needs to be sent after dividing by 100 as mentioned in thre
     // datasheet section 3.7.5
     uint16_t pressure_arg = (uint16_t) (pressure_mbar/100);
-    scd41_fill_command_buffer(SCD41_CMD_SET_AMBIENT_PRESSURE, &packet[0]);
-
-    packet[2] = (uint8_t)(pressure_arg >> 8);
-    packet[3] = (uint8_t)(pressure_arg & 0xFF);
-    packet[4] = scd41_crc_calculate(&packet[2], 2);
-
-    if (i2c_write(SCD41_I2C_ADDR, packet, 5) != 0)
-        return SCD41_ERR_I2C_WRITE;
-    
-    delay_ms(SCD41_SET_AMBIENT_PRESSURE_DELAY_MS);
-
-    return SCD41_OK;
+    uint8_t result = _scd41_send_command_with_u16_arg(SCD41_CMD_SET_AMBIENT_PRESSURE,
+                                    pressure_arg,
+                                    SCD41_SET_AMBIENT_PRESSURE_DELAY_MS);
+    return result;
 }
 
 
@@ -273,3 +278,30 @@ int8_t scd41_get_ambient_pressure(uint32_t* pressure_pa){
     return result;
 }
 
+int8_t scd41_persist_settings(void) {
+    int8_t result = _scd41_send_command(SCD41_CMD_PERSIST_SETTINGS, 
+                                        SCD41_PERSIST_SETTINGS_DELAY_MS); 
+    return result;  
+}
+
+ int8_t scd41_set_automatic_self_calibration_enabled(bool enabled) {
+    uint16_t asc = enabled ? 1 : 0;
+    uint8_t result = _scd41_send_command_with_u16_arg(SCD41_CMD_SET_ASC_ENABLED, 
+                                        enabled, 
+                                        SCD41_SET_ASC_ENABLED_DELAY_MS);
+    return result;
+}
+
+
+ int8_t scd41_get_automatic_self_calibration_enabled(bool* is_enabled) {
+    uint16_t asc_status;
+    scd41_error_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_ASC_ENABLED, 
+                                                    &asc_status, 
+                                                    SCD41_GET_ASC_ENABLED_DELAY_MS);
+
+    if (result == SCD41_OK) {
+        *is_enabled = (asc_status == 1);
+    }
+
+    return result;
+}

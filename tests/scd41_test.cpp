@@ -385,7 +385,8 @@ TEST(Scd41Driver_TestGroup, GetSensorAmbientPressure_Success) {
             .withParameter("len", 2)
             .andReturnValue(0);
 
-      mock().expectOneCall("delay_ms").withParameter("ms", SCD41_GET_AMBIENT_PRESSURE_DELAY_MS);
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_GET_AMBIENT_PRESSURE_DELAY_MS);
 
       mock().expectOneCall("i2c_read")
             .withParameter("addr", SCD41_I2C_ADDR)
@@ -397,6 +398,72 @@ TEST(Scd41Driver_TestGroup, GetSensorAmbientPressure_Success) {
 
       LONGS_EQUAL(SCD41_OK, result);
       UNSIGNED_LONGS_EQUAL(expected_pressure_pa, actual_pressure_pa);
+
+}
+
+TEST(Scd41Driver_TestGroup, PersistSettingsSuccess) {
+      // We don't do much here. Just send command
+      // and see if it is a successful i2c write
+      uint8_t expected_cmd[] = {0x36, 0x15};
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+            .withParameter("len", 2)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_PERSIST_SETTINGS_DELAY_MS);
+
+      int8_t result = scd41_persist_settings();
+
+      LONGS_EQUAL(result, SCD41_OK);
+}
+
+TEST(Scd41Driver_TestGroup, SetAscEnabled_Success) {
+      // Values taken from datasheet section 3.8.2
+      uint8_t expected_packet[5] = {0x24, 0x16, 0x00, 0x01, 0xB0};
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_packet, sizeof(expected_packet))
+            .withParameter("len", 5)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_SET_ASC_ENABLED_DELAY_MS);
+
+      int8_t result = scd41_set_automatic_self_calibration_enabled(true);
+
+      LONGS_EQUAL(SCD41_OK, result);
+
+}
+
+TEST(Scd41Driver_TestGroup, GetAscEnabled_False) {
+      // Values taken from datasheet section 3.8.3
+      uint8_t expected_cmd[2] = {0x23, 0x13};
+      uint8_t fake_sensor_response[] = {0x00, 0x00, 0x81};
+      bool asc_enabled;
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+            .withParameter("len", 2)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_GET_ASC_ENABLED_DELAY_MS);
+
+      mock().expectOneCall("i2c_read")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withParameter("len", 3)
+            .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+            .andReturnValue(0);
+
+      int8_t result = scd41_get_automatic_self_calibration_enabled(&asc_enabled);
+
+      LONGS_EQUAL(SCD41_OK, result);
+      CHECK_FALSE(asc_enabled);
 
 }
 

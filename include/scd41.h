@@ -19,6 +19,9 @@
 #define SCD41_CMD_GET_SENSOR_ALTITUDE                   0x2322
 #define SCD41_CMD_SET_AMBIENT_PRESSURE                  0XE000
 #define SCD41_CMD_GET_AMBIENT_PRESSURE                  0XE000
+#define SCD41_CMD_PERSIST_SETTINGS                      0x3615
+#define SCD41_CMD_SET_ASC_ENABLED                       0x2416
+#define SCD41_CMD_GET_ASC_ENABLED                       0x2313
 
 
 //  Measurement delays in milliseconds (ms) for the sensor.
@@ -33,7 +36,9 @@
 #define SCD41_GET_SENSOR_ALTITUDE_DELAY_MS              1U
 #define SCD41_SET_AMBIENT_PRESSURE_DELAY_MS             1U
 #define SCD41_GET_AMBIENT_PRESSURE_DELAY_MS             1U
-
+#define SCD41_PERSIST_SETTINGS_DELAY_MS                 8U
+#define SCD41_SET_ASC_ENABLED_DELAY_MS                  1U
+#define SCD41_GET_ASC_ENABLED_DELAY_MS                  1U
 /**
  * @brief Error codes
  */
@@ -151,5 +156,30 @@ int8_t scd41_set_ambient_pressure(uint32_t pressure_pa);
  * @return SCD41_OK on success, non-zero on failure.
  */
 int8_t scd41_get_ambient_pressure(uint32_t* pressure_pa);
+
+/**
+ * @brief Saves the current configuration to the sensor's non-volatile memory.
+ * @return SCD41_OK on success, or a specific scd41_error_t on failure.
+ */
+int8_t scd41_persist_settings(void);
+
+/**
+ * @brief Sets the current state (enabled / disabled) of the Automatic 
+ *        self calibration (ASC).
+ * @param enabled Enable or disable ASC.
+ * @return SCD41_OK on success, non-zero on failure.
+ */
+
+ int8_t scd41_set_automatic_self_calibration_enabled(bool enabled);
+
+
+ /**
+ * @brief Gets the current state (enabled / disabled) of the Automatic 
+ *        self calibration (ASC).
+ * @param is_enabled Pointer to a boolean that will be set to the current status.
+ * @return SCD41_OK on success, non-zero on failure.
+ */
+
+ int8_t scd41_get_automatic_self_calibration_enabled(bool* is_enabled);
 
 #endif // SCD41_H
