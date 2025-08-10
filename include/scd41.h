@@ -22,6 +22,8 @@
 #define SCD41_CMD_PERSIST_SETTINGS                      0x3615
 #define SCD41_CMD_SET_ASC_ENABLED                       0x2416
 #define SCD41_CMD_GET_ASC_ENABLED                       0x2313
+#define SCD41_CMD_SET_ASC_TARGET                        0x243A
+#define SCD41_CMD_GET_ASC_TARGET                        0x233F
 
 
 //  Measurement delays in milliseconds (ms) for the sensor.
@@ -39,6 +41,9 @@
 #define SCD41_PERSIST_SETTINGS_DELAY_MS                 8U
 #define SCD41_SET_ASC_ENABLED_DELAY_MS                  1U
 #define SCD41_GET_ASC_ENABLED_DELAY_MS                  1U
+#define SCD41_SET_ASC_TARGET_DELAY_MS                   1U
+#define SCD41_GET_ASC_TARGET_DELAY_MS                   1U
+
 /**
  * @brief Error codes
  */
@@ -180,6 +185,22 @@ int8_t scd41_persist_settings(void);
  * @return SCD41_OK on success, non-zero on failure.
  */
 
- int8_t scd41_get_automatic_self_calibration_enabled(bool* is_enabled);
+int8_t scd41_get_automatic_self_calibration_enabled(bool* is_enabled);
+
+ 
+/**
+ * @brief Sets the value of the ASC baseline target.
+ * @param target The target CO2 concentration in ppm.
+ * @return SCD41_OK on success, non-zero on failure.
+ */
+int8_t set_automatic_self_calibration_target(uint16_t target);
+
+/**
+ * @brief Gets the value of the current ASC baseline target.
+ * @param target Pointer to buffer to store target CO2 concentration in ppm.
+ * @return SCD41_OK on success, non-zero on failure.
+ */
+int8_t get_automatic_self_calibration_target(uint16_t* target);
+
 
 #endif // SCD41_H

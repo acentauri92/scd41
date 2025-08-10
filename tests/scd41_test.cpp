@@ -467,6 +467,51 @@ TEST(Scd41Driver_TestGroup, GetAscEnabled_False) {
 
 }
 
+TEST(Scd41Driver_TestGroup, SetAscTarget_Success) {
+      // Values taken from datasheet section 3.8.3
+      uint8_t expected_packet[5] = {0x24, 0x3A, 0x01, 0xB3, 0x99};
+      uint16_t target = 435;
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_packet, sizeof(expected_packet))
+            .withParameter("len", 5)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_GET_ASC_ENABLED_DELAY_MS);
+
+      int8_t result = set_automatic_self_calibration_target(target);
+
+      LONGS_EQUAL(SCD41_OK, result);
+}
+
+TEST(Scd41Driver_TestGroup, GetAscTarget_Success) {
+      // Values taken from datasheet section 3.8.3
+      uint8_t expected_cmd[2] = {0x23, 0x3F};
+      uint8_t fake_sensor_response[] = {0x01, 0xA4, 0x4D};
+      uint16_t target;
+
+      mock().expectOneCall("i2c_write")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withMemoryBufferParameter("data", expected_cmd, sizeof(expected_cmd))
+            .withParameter("len", 2)
+            .andReturnValue(0);
+
+      mock().expectOneCall("delay_ms")
+            .withParameter("ms", SCD41_GET_ASC_ENABLED_DELAY_MS);
+
+      mock().expectOneCall("i2c_read")
+            .withParameter("addr", SCD41_I2C_ADDR)
+            .withParameter("len", 3)
+            .withOutputParameterReturning("data", fake_sensor_response, sizeof(fake_sensor_response))
+            .andReturnValue(0);
+
+      int8_t result = get_automatic_self_calibration_target(&target);
+
+      LONGS_EQUAL(SCD41_OK, result);
+}
+
 int main(int ac, char** av)
 {
     return CommandLineTestRunner::RunAllTests(ac, av);

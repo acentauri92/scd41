@@ -267,7 +267,9 @@ int8_t scd41_set_ambient_pressure(uint32_t pressure_mbar) {
 int8_t scd41_get_ambient_pressure(uint32_t* pressure_pa){
 
     uint16_t pressure_mbar;
-    int8_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_AMBIENT_PRESSURE, &pressure_mbar, SCD41_GET_AMBIENT_PRESSURE_DELAY_MS);
+    int8_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_AMBIENT_PRESSURE, 
+                                            &pressure_mbar, 
+                                            SCD41_GET_AMBIENT_PRESSURE_DELAY_MS);
 
     if (result == SCD41_OK) {
         // Convert the value from mbar (hPa) to Pascals as mentioned
@@ -287,21 +289,43 @@ int8_t scd41_persist_settings(void) {
  int8_t scd41_set_automatic_self_calibration_enabled(bool enabled) {
     uint16_t asc = enabled ? 1 : 0;
     uint8_t result = _scd41_send_command_with_u16_arg(SCD41_CMD_SET_ASC_ENABLED, 
-                                        enabled, 
-                                        SCD41_SET_ASC_ENABLED_DELAY_MS);
+                                                    enabled, 
+                                                    SCD41_SET_ASC_ENABLED_DELAY_MS);
     return result;
 }
 
 
  int8_t scd41_get_automatic_self_calibration_enabled(bool* is_enabled) {
     uint16_t asc_status;
-    scd41_error_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_ASC_ENABLED, 
-                                                    &asc_status, 
-                                                    SCD41_GET_ASC_ENABLED_DELAY_MS);
+    int8_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_ASC_ENABLED, 
+                                            &asc_status, 
+                                            SCD41_GET_ASC_ENABLED_DELAY_MS);
 
     if (result == SCD41_OK) {
         *is_enabled = (asc_status == 1);
     }
 
     return result;
+}
+
+int8_t set_automatic_self_calibration_target(uint16_t target) {
+    int8_t result = _scd41_send_command_with_u16_arg(SCD41_CMD_SET_ASC_TARGET, 
+                                                    target, 
+                                                    SCD41_SET_ASC_TARGET_DELAY_MS);
+    
+    if (result != 0)
+        return result;
+
+    return SCD41_OK;
+}
+
+int8_t get_automatic_self_calibration_target(uint16_t* target) {
+    int8_t result = _scd41_read_u16_with_crc(SCD41_CMD_GET_ASC_TARGET,
+                                            target,
+                                            SCD41_GET_ASC_TARGET_DELAY_MS);
+
+    if (result != 0)
+        return result;
+
+    return SCD41_OK;
 }
