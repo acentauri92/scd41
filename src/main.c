@@ -4,41 +4,88 @@
 #include "rpi_i2c_hal.h"
 
 int main() {
-    printf("--- SCD41 Single Shot Measurement Test ---\n");
-
     // Initialize the hardware
     if (rpi_i2c_hal_init() != 0) {
         printf("HAL initialization failed. Exiting.\n");
         return 1;
     }
+    int8_t result;
 
-    // --- Robust Startup ---
-    // Wake the sensor up from its low-power idle state.
-    printf("Waking sensor...\n");
-    if (scd41_wakeup() != 0) {
-        printf("Error: Could not wake up sensor. Trying to continue...\n");
-    } else {
-        printf("Sensor is awake.\n");
-    }
-    // Give it a moment to stabilize after waking up.
-    sleep(1);
+    uint16_t current_altitude = 0;
+    uint16_t altitude_to_set = 930;
+    uint32_t pressure_to_set = 101400;
+    uint32_t current_pressure = 0;
 
 
-    // --- Perform Single Shot Measurement ---
-    printf("Triggering single shot measurement. This will take 5 seconds...\n");
-    scd41_measurement_t measurement;
-    int8_t result = scd41_measure_single_shot(&measurement);
+    result = scd41_get_sensor_altitude(&current_altitude);
+    if(result != SCD41_OK)
+        return result;
 
-    if (result == 0) {
-        printf("Measurement successful!\n");
-        printf("  CO2: %d ppm\n", measurement.co2_ppm);
-        printf("  Temperature: %.2f C\n", measurement.temperature_c);
-        printf("  Humidity: %.2f %%RH\n", measurement.humidity_rh);
-    } else {
-        printf("Error: Failed to perform single shot measurement. (Error code: %d)\n", result);
-    }
+    result = scd41_set_ambient_pressure(pressure_to_set);
+    if(result != SCD41_OK)
+        return result;
 
-    // Clean up
+    result = scd41_get_ambient_pressure(&current_pressure);
+    if(result != SCD41_OK)
+        return result;
+
+    printf("Sensor current altitude: %d\n", current_altitude);
+    printf("Sensor current pressurer: %d\n", current_pressure);
+
     rpi_i2c_hal_close();
+
     return 0;
 }
+
+/* Periodic measurement ex*/
+// int main() {
+//     // Initialize the hardware
+//     if (rpi_i2c_hal_init() != 0) {
+//         printf("HAL initialization failed. Exiting.\n");
+//         return 1;
+//     }
+
+//     int8_t result = scd41_stop_periodic_measurement();
+//     if(result != SCD41_OK)
+//         return result;
+
+//     // --- Perform Single Shot Measurement ---
+//     printf("Triggering periodic measurement...\n");
+//     scd41_measurement_t measurement;
+//     result = scd41_start_periodic_measurement();
+
+//     if (result == SCD41_OK) {
+//         uint8_t i  = 10;
+
+//         while ( i-- > 0) {
+//             sleep(5);
+//             bool is_data_ready = false;
+//             int8_t result = scd41_get_data_ready_status(&is_data_ready);
+//             if(result != SCD41_OK)
+//                 return result;
+
+//             if(is_data_ready) {
+//                 result = scd41_read_measurement(&measurement);
+//                 if(result != SCD41_OK)
+//                     return result;
+
+//                 printf("  CO2: %d ppm\n", measurement.co2_ppm);
+//                 printf("  Temperature: %.2f C\n", measurement.temperature_c);
+//                 printf("  Humidity: %.2f %%RH\n\n", measurement.humidity_rh);
+//             }
+//         }
+        
+//         // Stop measurement before exiting.
+//         result = scd41_stop_periodic_measurement();
+//         if(result != SCD41_OK)
+//             return result;
+//     } 
+
+//     else {
+//         printf("Error: Failed to perform periodic measurement. (Error code: %d)\n", result);
+//     }
+
+//     rpi_i2c_hal_close();
+
+//     return 0;
+// }
