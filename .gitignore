@@ -33,3 +33,8 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 
+# Plot related
+venv/
+*.csv
+*.png
+
