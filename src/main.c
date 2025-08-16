@@ -3,38 +3,11 @@
 #include <time.h>
 #include "scd41.h"
 #include "rpi_i2c_hal.h"
-
-
-/**
- * @brief Helper function to check if a file exists.
- * @param filename The name of the file to check.
- * @return True if the file exists, false otherwise.
- */
-bool file_exists(const char *filename) {
-    FILE *file = fopen(filename, "r");
-    if (file) {
-        fclose(file);
-        return true;
-    }
-    return false;
-}
+#include "influx_logger.h"
 
 int main() {
 
-    const char* log_filename = "sensor_log.csv";
-    bool needs_header = !file_exists(log_filename);
-
-    // Open the log file for appending data.
-    FILE *log_file = fopen(log_filename, "a");
-    if (log_file == NULL) {
-        perror("Error opening log file");
-        return 1;
-    }
-
-    // If the file is new, write the CSV header.
-    if (needs_header) {
-        fprintf(log_file, "Timestamp,Avg_CO2_ppm,Avg_Temp_C,Avg_Humidity_RH\n");
-    }
+    int8_t result;
 
     // Initialize the hardware
     if (rpi_i2c_hal_init() != 0) {
@@ -42,10 +15,24 @@ int main() {
         return 1;
     }
 
-    // --- Perform Single Shot Measurement ---
+    if (influx_logger_init() != 0) {
+        printf("Influx logger initialization failed. Exiting.\n");
+        rpi_i2c_hal_close();
+        return 1;
+    }
+
+    // Stop any unintended measurements
+    result = scd41_stop_periodic_measurement();
+    if(result != SCD41_OK) {
+        printf("Stop periodic measurement failed with error %d\n", result);
+        rpi_i2c_hal_close();
+        return -1;
+    }
+
     printf("Triggering periodic measurement...\n");
     scd41_measurement_t measurement[10];
-    int8_t result = scd41_start_periodic_measurement();
+
+    result = scd41_start_periodic_measurement();
 
     if (result == SCD41_OK) {
         uint8_t i  = 10;
@@ -69,6 +56,7 @@ int main() {
         }
         
         // Stop measurement before exiting.
+        printf("Stopping periodic measurements...\n");
         result = scd41_stop_periodic_measurement();
         if(result != SCD41_OK)
             return result;
@@ -97,18 +85,13 @@ int main() {
     printf("Average Temperature: %.2f \n", avg_temp);
     printf("Average RH: %.2f \n", avg_rh);
 
-    // Get current time for the log entry
-    time_t now = time(NULL);
-    char time_buffer[32];
-    // Format the time into an ISO 8601 string (e.g., "2023-10-27T10:30:00")
-    strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%dT%H:%M:%S", localtime(&now));
+    scd41_measurement_t avg_measurement = {0};
+    avg_measurement.co2_ppm = avg_co2;
+    avg_measurement.humidity_rh = avg_rh;
+    avg_measurement.temperature_c = avg_temp;
 
-    
-    // Write the averages as a new line in the CSV file
-    fprintf(log_file, "%s,%.2f,%.2f,%.2f\n", time_buffer, avg_co2, avg_temp, avg_rh);
-    printf("Averages written to %s\n", log_filename);
-    
-    fclose(log_file);
+    influx_logger_send_scd41_data(&avg_measurement);
+
     rpi_i2c_hal_close();
 
     return 0;
