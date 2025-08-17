@@ -177,14 +177,18 @@ int8_t scd41_read_measurement(scd41_measurement_t* measurement) {
     if(result != SCD41_OK)
         return result;
     
-    // Validate each word
-    result = _scd41_read_word_with_crc(&read_buffer[0], &co2_raw) != 0 ||
-                _scd41_read_word_with_crc(&read_buffer[3], &temp_raw) != 0 ||
-                _scd41_read_word_with_crc(&read_buffer[6], &rh_raw) != 0;
+    // Check all CRCs first. If any fail, return the error immediately.
+    if (_scd41_read_word_with_crc(&read_buffer[0], &co2_raw) != SCD41_OK) {
+        return SCD41_ERR_CRC;
+    }
+    if (_scd41_read_word_with_crc(&read_buffer[3], &temp_raw) != SCD41_OK) {
+        return SCD41_ERR_CRC;
+    }
+    if (_scd41_read_word_with_crc(&read_buffer[6], &rh_raw) != 0) {
+        return SCD41_ERR_CRC;
+    }
 
-    if(result != SCD41_OK)
-        return result; 
-
+    // Only if all CRCs are valid, proceed with the conversion.
     // Formulas are from datasheet Section 3.6.2
     measurement->co2_ppm = co2_raw;
     measurement->temperature_c = -45.0f + ( (175.0f * (float)temp_raw) / 65535.0f );

@@ -5,9 +5,12 @@
 #include "rpi_i2c_hal.h"
 #include "influx_logger.h"
 
+#define NUM_OF_SAMPLES_REQUIRED     10
+
 int main() {
 
     int8_t result;
+    uint16_t valid_samples_collected = 0;
 
     // Initialize the hardware
     if (rpi_i2c_hal_init() != 0) {
@@ -30,28 +33,41 @@ int main() {
     }
 
     printf("Triggering periodic measurement...\n");
-    scd41_measurement_t measurement[10];
+    scd41_measurement_t measurement[NUM_OF_SAMPLES_REQUIRED] = {0};
 
     result = scd41_start_periodic_measurement();
 
     if (result == SCD41_OK) {
-        uint8_t i  = 10;
 
-        while ( i-- > 0) {
+        while(valid_samples_collected < NUM_OF_SAMPLES_REQUIRED) {
             sleep(5);
             bool is_data_ready = false;
-            int8_t result = scd41_get_data_ready_status(&is_data_ready);
-            if(result != SCD41_OK)
-                return result;
+
+            if (scd41_get_data_ready_status(&is_data_ready) != SCD41_OK) {
+                printf("Warning: Failed to get data ready status. Retrying...\n");
+                continue;
+            }
 
             if(is_data_ready) {
-                result = scd41_read_measurement(&measurement[i]);
-                if(result != SCD41_OK)
-                    return result;
+                result = scd41_read_measurement(&measurement[valid_samples_collected]);
+                if(result != SCD41_OK){
+                    printf("Warning: Failed to get valid measurement (Error: %d). \
+                            Discarding and retrying...\n", result);
+                    continue;
+                }
 
-                printf("  CO2: %d ppm\n", measurement[i].co2_ppm);
-                printf("  Temperature: %.2f C\n", measurement[i].temperature_c);
-                printf("  Humidity: %.2f %%RH\n\n", measurement[i].humidity_rh);
+                // Data is valid at this point. Print and increment sample count
+                printf("Sample %d -> CO2: %d ppm, Temp: %.2f C, RH: %.2f %%\n",
+                        valid_samples_collected + 1,
+                        measurement[valid_samples_collected].co2_ppm,
+                        measurement[valid_samples_collected].temperature_c,
+                        measurement[valid_samples_collected].humidity_rh);
+
+                valid_samples_collected++;
+            }
+
+            else {
+                printf("Warning: Data was not ready in time. Retrying...\n");
             }
         }
         
@@ -63,7 +79,7 @@ int main() {
     } 
 
     else {
-        printf("Error: Failed to perform periodic measurement. (Error code: %d)\n", result);
+        printf("Error: Failed to start periodic measurement. (Error code: %d)\n", result);
     }
 
     // Calculate average
@@ -71,15 +87,15 @@ int main() {
     float total_temp = 0;
     float total_rh = 0;
 
-    for(int i = 0; i < 10; i++) {   
+    for(int i = 0; i < NUM_OF_SAMPLES_REQUIRED; i++) {   
         total_co2 = total_co2 + measurement[i].co2_ppm;
         total_temp = total_temp + measurement[i].temperature_c;
         total_rh = total_rh + measurement[i].humidity_rh;
     }
 
-    float avg_co2 = total_co2 / 10;
-    float avg_temp = total_temp / 10;
-    float avg_rh = total_rh / 10;
+    float avg_co2 = total_co2 / NUM_OF_SAMPLES_REQUIRED;
+    float avg_temp = total_temp / NUM_OF_SAMPLES_REQUIRED;
+    float avg_rh = total_rh / NUM_OF_SAMPLES_REQUIRED;
 
     printf("Average CO2: %.2f \n", avg_co2);
     printf("Average Temperature: %.2f \n", avg_temp);
